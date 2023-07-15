@@ -1,0 +1,90 @@
+﻿@page "/"
+@using SemanticKanelTest.Data;
+@using SemanticKanelTest.Logic;
+@inject ISemanticKernelLogic logic
+
+@if (Messages != null)
+{
+    <div class="top-area">
+        <div class="chat-area">
+            @foreach (var message in Messages)
+            {
+                @if (message.Name == "Reply")
+                {
+                    <div class="chat-area-system">
+                        <div class="message-box-assistant">
+                            @(
+                                (MarkupString)message.Message
+                                )
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="chat-area-user">
+                        <div class="message-box">
+                            @message.Message
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+        <div class="input-message-area">
+            <textarea rows="4" cols="80" @bind=Send />
+            <button type="submit" @onclick="OnSend">送信</button>
+            <button class="button-clear" type="button" @onclick="OnClear">クリア</button>
+        </div>
+        
+    </div>
+}
+
+
+@code {
+    private string? Send;
+    private List<ChatMessage> Messages = new();
+
+    private void OnClear()
+    {
+        logic.ClearChatHistory();
+        Messages.Clear();
+    }
+
+    private async void OnSend()
+    {
+        if (!string.IsNullOrWhiteSpace(Send))
+        {
+            logic.GeneratedHtml = string.Empty;
+            ChatMessage UserMessage = new();
+            UserMessage.Name = "User";
+            UserMessage.Message = Send;
+            Messages.Add(UserMessage);
+            Send = string.Empty;
+
+            ChatMessage reply = new();
+            reply.Name = "Reply";
+            reply.Message = logic.GeneratedHtml;
+
+            Messages.Add(reply);
+            StateHasChanged();
+            await logic.StreamRun(UserMessage.Message);
+
+            StateHasChanged();
+        }
+    }
+
+
+    protected override void OnInitialized()
+    {
+        logic.OnChange += () => OnCallback();
+    }
+
+    public void OnCallback()
+    {
+        _ = InvokeAsync(() =>
+        {
+            Messages.FindLast(x => x.Name == "Reply")!.Message = logic.GeneratedHtml;
+            StateHasChanged();
+        });
+    }
+}
+
